@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "556026602042",
+    "project_id": "bebshar-poristhiti-stock-01",
+    "storage_bucket": "bebshar-poristhiti-stock-01.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:556026602042:android:9ca30a441f25ac4c8c4b03",
+        "android_client_info": {
+          "package_name": "com.hesoftwaresolution.bebshar_poristhiti_stock"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBGgAH2hIriqifHJ7BTAb52AqgjrhiIbNc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
