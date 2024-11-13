@@ -14,6 +14,11 @@ class _ExpensePageState extends State<ExpensePage> {
   TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
+  Future<Map<String, dynamic>?> getPreviousExpense(String expenseId) async {
+    final expenseDoc = await getExpenseCollection().doc(expenseId).get();
+    return expenseDoc.exists ? expenseDoc.data() as Map<String, dynamic>? : null;
+  }
+
   double _totalExpense = 0.0;
   bool _includeInCashbox = false;
   User? _currentUser;
@@ -46,25 +51,68 @@ class _ExpensePageState extends State<ExpensePage> {
   Future<void> _addExpense() async {
     if (_expenseController.text.isEmpty) return;
 
+    final expenseAmount = double.parse(_expenseController.text);
     final expenseData = {
-      'amount': double.parse(_expenseController.text),
+      'amount': expenseAmount,
       'reason': _detailsController.text,
       'time': Timestamp.now(),
     };
 
+    // Add to expense collection
     final expenseDoc = await getExpenseCollection().add(expenseData);
 
+    // Add to cashbox collection if _includeInCashbox is true
     if (_includeInCashbox) {
       final cashboxData = {
-        'amount': -double.parse(_expenseController.text),
+        'amount': -expenseAmount,
         'reason': _detailsController.text,
         'time': Timestamp.now(),
       };
       await getCashboxCollection().doc(expenseDoc.id).set(cashboxData);
     }
 
-    await _calculateTotalExpense();
+    // Get the current date information
+    final now = DateTime.now();
+    final userId = FirebaseAuth.instance.currentUser!.uid;
 
+    // Update daily_totals collection
+    final dailyDocRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .collection('daily_totals')
+        .doc('${now.year}-${now.month}-${now.day}');
+
+    await dailyDocRef.set({
+      'expense': FieldValue.increment(expenseAmount),
+      if (_includeInCashbox) 'expense_cashbox': FieldValue.increment(expenseAmount),
+    }, SetOptions(merge: true));
+
+    // Update monthly_totals collection
+    final monthlyDocRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .collection('monthly_totals')
+        .doc('${now.year}-${now.month}');
+
+    await monthlyDocRef.set({
+      'expense': FieldValue.increment(expenseAmount),
+      if (_includeInCashbox) 'expense_cashbox': FieldValue.increment(expenseAmount),
+    }, SetOptions(merge: true));
+
+    // Update yearly_totals collection
+    final yearlyDocRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .collection('yearly_totals')
+        .doc('${now.year}');
+
+    await yearlyDocRef.set({
+      'expense': FieldValue.increment(expenseAmount),
+      if (_includeInCashbox) 'expense_cashbox': FieldValue.increment(expenseAmount),
+    }, SetOptions(merge: true));
+
+    // Update total expense calculation and clear fields
+    await _calculateTotalExpense();
     _expenseController.clear();
     _detailsController.clear();
     setState(() {
@@ -80,26 +128,54 @@ class _ExpensePageState extends State<ExpensePage> {
     return cashboxDoc.exists;
   }
 
-  Future<void> _editExpense(String expenseId, double amount, String details,
-      bool includeInCashbox) async {
+  Future<void> _editExpense(String expenseId, double newAmount, String newDetails,
+      bool newIncludeInCashbox) async {
+    final previousData = await getPreviousExpense(expenseId);
+
+    if (previousData == null) {
+      print("Previous data not found.");
+      return;
+    }
+
+    // পুরনো ভেলু এবং চেকবক্স স্টেট পাওয়া যাচ্ছে
+    double previousAmount = previousData['amount'] ?? 0.0;
+    bool previousIncludeInCashbox = previousData['includeInCashbox'] ?? false;
+
+    // `expense` এবং `expense_cashbox` ফিল্ডে আপডেট লজিক
+    final expenseDifference = newAmount - previousAmount;
+
+    // Updated data for expense collection
     final updatedData = {
-      'amount': amount,
-      'reason': details,
+      'amount': newAmount,
+      'reason': newDetails,
       'time': Timestamp.now(),
+      'includeInCashbox': newIncludeInCashbox,
     };
 
+    // Update the main expense collection
     await getExpenseCollection().doc(expenseId).update(updatedData);
 
-    // Check if the expense is to be included in cashbox
-    if (includeInCashbox) {
-      final updatedCashboxData = {
-        'amount': -amount,
-        'reason': details,
+    // Updating daily, monthly, and yearly totals based on cashbox state
+    if (newIncludeInCashbox && !previousIncludeInCashbox) {
+      // If checkbox is newly checked, add the new amount to expense_cashbox
+      await updateTotals(newAmount, newAmount);
+    } else if (!newIncludeInCashbox && previousIncludeInCashbox) {
+      // If checkbox is unchecked, subtract the previous amount from expense_cashbox
+      await updateTotals(expenseDifference, -previousAmount);
+    } else {
+      // If checkbox state hasn't changed, update only the expense field
+      await updateTotals(expenseDifference, previousIncludeInCashbox ? expenseDifference : 0);
+    }
+
+    // Update or remove from cashbox based on checkbox state
+    if (newIncludeInCashbox) {
+      final cashboxData = {
+        'amount': -newAmount,
+        'reason': newDetails,
         'time': Timestamp.now(),
       };
-      await getCashboxCollection().doc(expenseId).set(updatedCashboxData);
-    } else {
-      // If the checkbox is unchecked, remove from cashbox
+      await getCashboxCollection().doc(expenseId).set(cashboxData);
+    } else if (previousIncludeInCashbox && !newIncludeInCashbox) {
       await getCashboxCollection().doc(expenseId).delete();
     }
 
@@ -107,11 +183,95 @@ class _ExpensePageState extends State<ExpensePage> {
     await _calculateTotalExpense();
   }
 
-  Future<void> _deleteExpense(String expenseId) async {
-    await getExpenseCollection().doc(expenseId).delete();
-    await getCashboxCollection().doc(expenseId).delete();
+// Update totals function to handle expense and cashbox
+  Future<void> updateTotals(double expenseChange, double cashboxChange) async {
+    final userId = FirebaseAuth.instance.currentUser!.uid;
+    final now = DateTime.now();
 
-    // Recalculate total expenses after deletion
+    final dailyDocRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .collection('daily_totals')
+        .doc('${now.year}-${now.month}-${now.day}');
+
+    await dailyDocRef.set({
+      'expense': FieldValue.increment(expenseChange),
+      'expense_cashbox': FieldValue.increment(cashboxChange),
+    }, SetOptions(merge: true));
+
+    final monthlyDocRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .collection('monthly_totals')
+        .doc('${now.year}-${now.month}');
+
+    await monthlyDocRef.set({
+      'expense': FieldValue.increment(expenseChange),
+      'expense_cashbox': FieldValue.increment(cashboxChange),
+    }, SetOptions(merge: true));
+
+    final yearlyDocRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .collection('yearly_totals')
+        .doc('${now.year}');
+
+    await yearlyDocRef.set({
+      'expense': FieldValue.increment(expenseChange),
+      'expense_cashbox': FieldValue.increment(cashboxChange),
+    }, SetOptions(merge: true));
+  }
+
+  Future<void> _deleteExpense(String expenseId) async {
+    final userId = FirebaseAuth.instance.currentUser!.uid;
+    final now = DateTime.now();
+
+    // Get previous expense data
+    final previousExpense = await getPreviousExpense(expenseId);
+    if (previousExpense == null) return;
+
+    final oldAmount = previousExpense['amount'];
+    final oldIncludeInCashbox = previousExpense['includeInCashbox'] ?? false;
+
+    // Delete from expense and cashbox collections
+    await getExpenseCollection().doc(expenseId).delete();
+    if (oldIncludeInCashbox) {
+      await getCashboxCollection().doc(expenseId).delete();
+    }
+
+    // Update daily_totals collection
+    final dailyDocRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .collection('daily_totals')
+        .doc('${now.year}-${now.month}-${now.day}');
+    await dailyDocRef.set({
+      'expense': FieldValue.increment(-oldAmount),
+      if (oldIncludeInCashbox) 'expense_cashbox': FieldValue.increment(-oldAmount),
+    }, SetOptions(merge: true));
+
+    // Update monthly_totals collection
+    final monthlyDocRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .collection('monthly_totals')
+        .doc('${now.year}-${now.month}');
+    await monthlyDocRef.set({
+      'expense': FieldValue.increment(-oldAmount),
+      if (oldIncludeInCashbox) 'expense_cashbox': FieldValue.increment(-oldAmount),
+    }, SetOptions(merge: true));
+
+    // Update yearly_totals collection
+    final yearlyDocRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .collection('yearly_totals')
+        .doc('${now.year}');
+    await yearlyDocRef.set({
+      'expense': FieldValue.increment(-oldAmount),
+      if (oldIncludeInCashbox) 'expense_cashbox': FieldValue.increment(-oldAmount),
+    }, SetOptions(merge: true));
+
     await _calculateTotalExpense();
   }
 
