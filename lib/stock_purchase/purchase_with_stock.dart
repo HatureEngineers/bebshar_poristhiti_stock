@@ -148,6 +148,7 @@ class _PurchaseStockPageState extends State<PurchaseStockPage> {
         'purchase_amount': FieldValue.increment(totalProductPrice),
         'purchase_remaining': FieldValue.increment(totalProductPrice - cashPayment),
         'purchase_paid': FieldValue.increment(cashPayment),
+        'cashbox_total': FieldValue.increment(-cashPayment),
         'date': now,
       }, SetOptions(merge: true));
 
@@ -162,6 +163,7 @@ class _PurchaseStockPageState extends State<PurchaseStockPage> {
         'purchase_amount': FieldValue.increment(totalProductPrice),
         'purchase_remaining': FieldValue.increment(totalProductPrice - cashPayment),
         'purchase_paid': FieldValue.increment(cashPayment),
+        'cashbox_total': FieldValue.increment(-cashPayment),
         'month': now.month,
         'year': now.year,
       }, SetOptions(merge: true));
@@ -177,6 +179,7 @@ class _PurchaseStockPageState extends State<PurchaseStockPage> {
         'purchase_amount': FieldValue.increment(totalProductPrice),
         'purchase_remaining': FieldValue.increment(totalProductPrice - cashPayment),
         'purchase_paid': FieldValue.increment(cashPayment),
+        'cashbox_total': FieldValue.increment(-cashPayment),
         'year': now.year,
       }, SetOptions(merge: true));
 

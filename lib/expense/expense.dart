@@ -84,7 +84,7 @@ class _ExpensePageState extends State<ExpensePage> {
 
     await dailyDocRef.set({
       'expense': FieldValue.increment(expenseAmount),
-      if (_includeInCashbox) 'expense_cashbox': FieldValue.increment(expenseAmount),
+      if (_includeInCashbox) 'cashbox_total': FieldValue.increment(expenseAmount),
     }, SetOptions(merge: true));
 
     // Update monthly_totals collection
@@ -96,7 +96,7 @@ class _ExpensePageState extends State<ExpensePage> {
 
     await monthlyDocRef.set({
       'expense': FieldValue.increment(expenseAmount),
-      if (_includeInCashbox) 'expense_cashbox': FieldValue.increment(expenseAmount),
+      if (_includeInCashbox) 'cashbox_total': FieldValue.increment(expenseAmount),
     }, SetOptions(merge: true));
 
     // Update yearly_totals collection
@@ -108,7 +108,7 @@ class _ExpensePageState extends State<ExpensePage> {
 
     await yearlyDocRef.set({
       'expense': FieldValue.increment(expenseAmount),
-      if (_includeInCashbox) 'expense_cashbox': FieldValue.increment(expenseAmount),
+      if (_includeInCashbox) 'cashbox_total': FieldValue.increment(expenseAmount),
     }, SetOptions(merge: true));
 
     // Update total expense calculation and clear fields
@@ -141,13 +141,13 @@ class _ExpensePageState extends State<ExpensePage> {
     double previousAmount = previousData['amount'] ?? 0.0;
     bool previousIncludeInCashbox = previousData['includeInCashbox'] ?? false;
 
-    // `expense` এবং `expense_cashbox` ফিল্ডে আপডেট লজিক
+    // `expense` এবং `cashbox_total` ফিল্ডে আপডেট লজিক
     final expenseDifference = newAmount - previousAmount;
 
     // Updated data for expense collection
     final updatedData = {
-      'amount': newAmount,
-      'reason': newDetails,
+      'amount': '(পরিবর্তিত) $newAmount',
+      'reason': '(পরিবর্তিত) $newDetails',
       'time': Timestamp.now(),
       'includeInCashbox': newIncludeInCashbox,
     };
@@ -157,10 +157,10 @@ class _ExpensePageState extends State<ExpensePage> {
 
     // Updating daily, monthly, and yearly totals based on cashbox state
     if (newIncludeInCashbox && !previousIncludeInCashbox) {
-      // If checkbox is newly checked, add the new amount to expense_cashbox
+      // If checkbox is newly checked, add the new amount to cashbox_total
       await updateTotals(newAmount, newAmount);
     } else if (!newIncludeInCashbox && previousIncludeInCashbox) {
-      // If checkbox is unchecked, subtract the previous amount from expense_cashbox
+      // If checkbox is unchecked, subtract the previous amount from cashbox_total
       await updateTotals(expenseDifference, -previousAmount);
     } else {
       // If checkbox state hasn't changed, update only the expense field
@@ -196,7 +196,7 @@ class _ExpensePageState extends State<ExpensePage> {
 
     await dailyDocRef.set({
       'expense': FieldValue.increment(expenseChange),
-      'expense_cashbox': FieldValue.increment(cashboxChange),
+      'cashbox_total': FieldValue.increment(cashboxChange),
     }, SetOptions(merge: true));
 
     final monthlyDocRef = FirebaseFirestore.instance
@@ -207,7 +207,7 @@ class _ExpensePageState extends State<ExpensePage> {
 
     await monthlyDocRef.set({
       'expense': FieldValue.increment(expenseChange),
-      'expense_cashbox': FieldValue.increment(cashboxChange),
+      'cashbox_total': FieldValue.increment(cashboxChange),
     }, SetOptions(merge: true));
 
     final yearlyDocRef = FirebaseFirestore.instance
@@ -218,7 +218,7 @@ class _ExpensePageState extends State<ExpensePage> {
 
     await yearlyDocRef.set({
       'expense': FieldValue.increment(expenseChange),
-      'expense_cashbox': FieldValue.increment(cashboxChange),
+      'cashbox_total': FieldValue.increment(cashboxChange),
     }, SetOptions(merge: true));
   }
 
@@ -247,7 +247,7 @@ class _ExpensePageState extends State<ExpensePage> {
         .doc('${now.year}-${now.month}-${now.day}');
     await dailyDocRef.set({
       'expense': FieldValue.increment(-oldAmount),
-      if (oldIncludeInCashbox) 'expense_cashbox': FieldValue.increment(-oldAmount),
+      if (oldIncludeInCashbox) 'cashbox_total': FieldValue.increment(-oldAmount),
     }, SetOptions(merge: true));
 
     // Update monthly_totals collection
@@ -258,7 +258,7 @@ class _ExpensePageState extends State<ExpensePage> {
         .doc('${now.year}-${now.month}');
     await monthlyDocRef.set({
       'expense': FieldValue.increment(-oldAmount),
-      if (oldIncludeInCashbox) 'expense_cashbox': FieldValue.increment(-oldAmount),
+      if (oldIncludeInCashbox) 'cashbox_total': FieldValue.increment(-oldAmount),
     }, SetOptions(merge: true));
 
     // Update yearly_totals collection
@@ -269,7 +269,7 @@ class _ExpensePageState extends State<ExpensePage> {
         .doc('${now.year}');
     await yearlyDocRef.set({
       'expense': FieldValue.increment(-oldAmount),
-      if (oldIncludeInCashbox) 'expense_cashbox': FieldValue.increment(-oldAmount),
+      if (oldIncludeInCashbox) 'cashbox_total': FieldValue.increment(-oldAmount),
     }, SetOptions(merge: true));
 
     await _calculateTotalExpense();
