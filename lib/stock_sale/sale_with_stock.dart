@@ -21,8 +21,9 @@ class _SaleStockPageState extends State<SaleStockPage> {
   String? selectedCustomerId;
   List<TextEditingController> priceControllers = [];
   List<Map<String, dynamic>> selectedProducts = [];
+  int previousTotalAmount = 0;
   double get totalProductPrice =>
-      selectedProducts.fold(0, (sum, product) => sum + (product['price'] * product['totalAmount']));
+      selectedProducts.fold(0, (sum, product) => sum + (product['sale_price'] * product['totalAmount']));
 
   double get grandTotal => selectedPreviousTransaction + totalProductPrice;
   final TextEditingController cashPaymentController = TextEditingController();
@@ -239,7 +240,7 @@ class _SaleStockPageState extends State<SaleStockPage> {
       barrierDismissible: false,
       builder: (context) => Dialog(
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20), // রাউন্ড এজ
+          borderRadius: BorderRadius.circular(20),
         ),
         child: SizedBox(
           width: MediaQuery.of(context).size.width * 0.9,
@@ -254,14 +255,18 @@ class _SaleStockPageState extends State<SaleStockPage> {
 
       if (!isProductAlreadySelected) {
         setState(() {
-          int previoustotalAmount = selectedProduct['totalAmount']?.toInt() ?? 0 ?? 0;
+          previousTotalAmount = selectedProduct['quantity']?.toDouble() ?? 0.0;
+
           selectedProducts.insert(0, {
             'name': selectedProduct['name'],
-            'price': selectedProduct['price'],
-            'totalAmount': 1,
-            'previoustotalAmount': previoustotalAmount,
+            'sale_price': selectedProduct['sale_price'],
+            'totalAmount': (selectedProduct['quantity'] * selectedProduct['sale_price']).toDouble(), // double এ কাস্ট করা হচ্ছে
+            'previousTotalAmount': selectedProduct['quantity']?.toDouble(), // quantity কে double এ কাস্ট করা
           });
-          priceControllers.insert(0, TextEditingController(text: selectedProduct['price'].toString()));
+          print("Selected Product in ProductSelectionPage: ${selectedProduct['quantity']}");
+          print('Selected Product: $selectedProduct');
+          print('previousTotalAmount $previousTotalAmount');
+          priceControllers.insert(0, TextEditingController(text: selectedProduct['sale_price'].toString()));
         });
       }
     }
@@ -277,8 +282,8 @@ class _SaleStockPageState extends State<SaleStockPage> {
 
   void updateProductPrice(int index, String value) {
     setState(() {
-      double newPrice = double.tryParse(value) ?? selectedProducts[index]['price'];
-      selectedProducts[index]['price'] = newPrice;
+      double newPrice = double.tryParse(value) ?? selectedProducts[index]['sale_price'];
+      selectedProducts[index]['sale_price'] = newPrice;
       saleAmount = totalProductPrice;
     });
   }
@@ -375,14 +380,13 @@ class _SaleStockPageState extends State<SaleStockPage> {
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          '${product['name']} (পণ্যের পরিমাণ: ${product['previoustotalAmount']})',
+                                          '${product['name']} (পণ্যের পরিমাণ: $previousTotalAmount টি)',
                                           style: TextStyle(
                                             fontWeight: FontWeight.bold,
                                             fontSize: screenWidth * 0.04,
                                             color: Colors.black,
                                           ),
                                         ),
-
                                       ],
                                     ),
                                     IconButton(
@@ -412,7 +416,7 @@ class _SaleStockPageState extends State<SaleStockPage> {
                                         onChanged: (value) => updateProducttotalAmount(index, value),
                                       ),
                                     ),
-                                    Text(' = ৳${product['price'] * product['totalAmount']}'),
+                                    Text(' = ৳${product['sale_price'] * product['totalAmount']}'),
                                   ],
                                 ),
                               ],

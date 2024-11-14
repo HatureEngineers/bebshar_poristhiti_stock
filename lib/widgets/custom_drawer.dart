@@ -6,7 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../bar_chart/report_page.dart';
 import '../bill/app_payment.dart';
-import '../cash_box/cash_box.dart';
+import '../employee_management/ui/employee_list_screen.dart';
 import '../expense/expense.dart';
 import '../product_management/UploadExcelPage.dart';
 import '../product_management/product.dart';
@@ -410,7 +410,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                   onTap: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => CashBoxScreen()),
+                      MaterialPageRoute(builder: (context) => EmployeeListScreen()),
                     );
                   },
                 ),

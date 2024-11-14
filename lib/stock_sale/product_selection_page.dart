@@ -17,7 +17,8 @@ class _ProductSelectionPageState extends State<ProductSelectionPage> {
   final int loadMoreCount = 10;
 
   final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _priceController = TextEditingController();
+  final TextEditingController _purchasePriceController = TextEditingController();
+  final TextEditingController _salePriceController = TextEditingController();
   final TextEditingController _totalAmountController = TextEditingController();
 
   @override
@@ -52,7 +53,7 @@ class _ProductSelectionPageState extends State<ProductSelectionPage> {
           if (snapshot.docs.isNotEmpty) {
             products = snapshot.docs.map((doc) => {
               'name': doc['name'] ?? 'Unknown',
-              'price': doc['price'] ?? 0,
+              'sale_price': doc['sale_price'] ?? 0,
               'totalAmount': doc['totalAmount'] ?? 0,
             }).toList();
             filteredProducts = products;
@@ -66,7 +67,11 @@ class _ProductSelectionPageState extends State<ProductSelectionPage> {
   }
 
   void _selectProduct(Map<String, dynamic> product) {
-    Navigator.pop(context, product);
+    Navigator.pop(context, {
+      'name': product['name'],
+      'quantity': product['totalAmount'],
+      'sale_price': product['sale_price'], // এখন বিক্রয় মূল্য পাঠানো হচ্ছে
+    });
   }
 
   void _filterProducts(String query) {
@@ -85,7 +90,10 @@ class _ProductSelectionPageState extends State<ProductSelectionPage> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text('নতুন পণ্য যুক্ত করুন'),
+          title: Text(
+            'নতুন পণ্য যুক্ত করুন',
+            textAlign: TextAlign.center,
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -94,8 +102,13 @@ class _ProductSelectionPageState extends State<ProductSelectionPage> {
                 decoration: InputDecoration(labelText: 'পণ্যের নাম'),
               ),
               TextField(
-                controller: _priceController,
-                decoration: InputDecoration(labelText: 'মূল্য (৳)'),
+                controller: _purchasePriceController,
+                decoration: InputDecoration(labelText: 'ক্রয় মূল্য (৳)'),
+                keyboardType: TextInputType.number,
+              ),
+              TextField(
+                controller: _salePriceController,
+                decoration: InputDecoration(labelText: 'বিক্রয় মূল্য (৳)'),
                 keyboardType: TextInputType.number,
               ),
               TextField(
@@ -121,14 +134,20 @@ class _ProductSelectionPageState extends State<ProductSelectionPage> {
               ),
               onPressed: () async {
                 if (_nameController.text.isNotEmpty &&
-                    _priceController.text.isNotEmpty &&
+                    _purchasePriceController.text.isNotEmpty &&
                     _totalAmountController.text.isNotEmpty) {
                   await _addProduct();
                   Navigator.pop(context);
                   _resetData();
                 }
               },
-              child: Text('যোগ করুন'),
+              child: Text(
+                'যুক্ত করুন',
+                style: TextStyle(
+                  fontSize: 18, // টেক্সট সাইজ পরিবর্তন
+                  fontWeight: FontWeight.bold, // ফন্টের ওজন পরিবর্তন (ঐচ্ছিক)
+                ),
+              ),
             ),
           ],
         );
@@ -158,24 +177,26 @@ class _ProductSelectionPageState extends State<ProductSelectionPage> {
       }
 
       // Validate and parse user inputs for price and totalAmount as double
-      double price = double.tryParse(_priceController.text) ?? 0.0;
+      double purchase_price = double.tryParse(_purchasePriceController.text) ?? 0.0;
+      double sale_price = double.tryParse(_salePriceController.text) ?? 0.0;
       double totalAmount = double.tryParse(_totalAmountController.text) ?? 0.0;
 
-      if (price <= 0 || totalAmount <= 0) {
+      if (purchase_price <= 0 || totalAmount <= 0) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('মূল্য এবং পরিমাণ সঠিকভাবে পূরণ করুন')),
         );
         return;
       }
 
-      double totalPrice = price * totalAmount;
+      double totalPrice = purchase_price * totalAmount;
       await FirebaseFirestore.instance
           .collection('users')
           .doc(userId)
           .collection('stock')
           .add({
         'name': productName,
-        'price': price,
+        'purchase_price': purchase_price,
+        'sale_price': sale_price,
         'quantity': totalAmount,
         'totalAmount': totalAmount,
         'totalPrice': totalPrice,
@@ -190,7 +211,8 @@ class _ProductSelectionPageState extends State<ProductSelectionPage> {
       );
 
       _nameController.clear();
-      _priceController.clear();
+      _purchasePriceController.clear();
+      _salePriceController.clear();
       _totalAmountController.clear();
       _resetData();
     } catch (e) {
@@ -255,32 +277,27 @@ class _ProductSelectionPageState extends State<ProductSelectionPage> {
                 itemBuilder: (context, index) {
                   final product = filteredProducts[index];
                   return Card(
-                    margin:
-                    EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                    margin: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
                     elevation: 4,
                     child: ListTile(
-                      title: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              '${product['name']} (${product['totalAmount']})',
-                              style:
-                              TextStyle(fontWeight: FontWeight.bold),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          Text(
-                            '৳ ${product['price']}',
-                            style: TextStyle(color: Colors.green[700]),
-                          ),
-                        ],
+                      title: Text(
+                        product['name'],
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      subtitle: Text(
+                        'মজুদ পরিমাণ: ${product['totalAmount']}',
+                        style: TextStyle(color: Colors.blueGrey),
+                      ),
+                      trailing: Text(
+                        'বিক্রয় মূল্যঃ ৳${product['sale_price']}',
+                        style: TextStyle(color: Colors.green[700]),
                       ),
                       onTap: () => _selectProduct(product),
                     ),
                   );
                 },
-              ),
+              )
             ),
           ),
           if (isLoading)
