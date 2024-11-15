@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'customer_selection_page.dart';
-import 'product_selection_page.dart';
+import 'sale_product_selection.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -21,7 +21,7 @@ class _SaleStockPageState extends State<SaleStockPage> {
   String? selectedCustomerId;
   List<TextEditingController> priceControllers = [];
   List<Map<String, dynamic>> selectedProducts = [];
-  int previousTotalAmount = 0;
+  double totalStockAmount = 0.0;
   double get totalProductPrice =>
       selectedProducts.fold(0, (sum, product) => sum + (product['sale_price'] * product['totalAmount']));
 
@@ -92,7 +92,7 @@ class _SaleStockPageState extends State<SaleStockPage> {
         if (productSnapshot.docs.isNotEmpty) {
           final productDoc = productSnapshot.docs.first;
           await productDoc.reference.update({
-            'totalAmount': FieldValue.increment(product['totalAmount']),
+            'totalAmount': FieldValue.increment(-product['totalAmount']),
           });
         }
       }
@@ -194,6 +194,7 @@ class _SaleStockPageState extends State<SaleStockPage> {
         selectedCustomerPhone = '';
         selectedPreviousTransaction = 0.0;
         selectedCustomerId = null;
+        isProcessing = false;
         FocusScope.of(context).unfocus();
       });
 
@@ -237,7 +238,7 @@ class _SaleStockPageState extends State<SaleStockPage> {
   void _openProductSelection(BuildContext context) async {
     final selectedProduct = await showDialog<Map<String, dynamic>>(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       builder: (context) => Dialog(
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
@@ -255,17 +256,13 @@ class _SaleStockPageState extends State<SaleStockPage> {
 
       if (!isProductAlreadySelected) {
         setState(() {
-          previousTotalAmount = selectedProduct['quantity']?.toDouble() ?? 0.0;
-
+          totalStockAmount = selectedProduct['totalAmount'];
           selectedProducts.insert(0, {
             'name': selectedProduct['name'],
             'sale_price': selectedProduct['sale_price'],
-            'totalAmount': (selectedProduct['quantity'] * selectedProduct['sale_price']).toDouble(), // double এ কাস্ট করা হচ্ছে
-            'previousTotalAmount': selectedProduct['quantity']?.toDouble(), // quantity কে double এ কাস্ট করা
+            'stockAmount': totalStockAmount,
+            'totalAmount': 1, // বিক্রয়ের জন্য ডিফল্ট পরিমাণ // প্রদর্শনের জন্য স্টক পরিমাণ
           });
-          print("Selected Product in ProductSelectionPage: ${selectedProduct['quantity']}");
-          print('Selected Product: $selectedProduct');
-          print('previousTotalAmount $previousTotalAmount');
           priceControllers.insert(0, TextEditingController(text: selectedProduct['sale_price'].toString()));
         });
       }
@@ -313,53 +310,20 @@ class _SaleStockPageState extends State<SaleStockPage> {
         padding: EdgeInsets.all(screenWidth * 0.04),
         child: Column(
           children: [
-            // Customer and Product Selection Buttons
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => _openCustomerSelection(context),
-                    icon: Icon(Icons.people, color: Colors.white),
-                    label: Text('কাস্টমার নির্বাচন', style: TextStyle(fontSize: screenWidth * 0.04)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
-                  ),
-                ),
-                SizedBox(width: 10),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => _openProductSelection(context),
-                    icon: Icon(Icons.add_shopping_cart, color: Colors.white),
-                    label: Text('পণ্য নির্বাচন', style: TextStyle(fontSize: screenWidth * 0.04)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 10),
             // Scrollable selected products list
             Expanded(
               child: Column(
                 children: [
                   Center(
                     child: Text(
-                      'নির্বাচিত পণ্যসমূহ:',
+                      'নির্বাচিত পণ্যসমূহ',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize: screenWidth * 0.045,
-                        color: Colors.teal,
+                        fontSize: screenWidth * 0.05,
+                        color: Colors.green,
                       ),
                     ),
                   ),
-
                   Expanded(
                     child: ListView.builder(
                       shrinkWrap: true,
@@ -380,7 +344,7 @@ class _SaleStockPageState extends State<SaleStockPage> {
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          '${product['name']} (পণ্যের পরিমাণ: $previousTotalAmount টি)',
+                                          '${product['name']} (পণ্যের পরিমাণ: ${product['stockAmount']})',
                                           style: TextStyle(
                                             fontWeight: FontWeight.bold,
                                             fontSize: screenWidth * 0.04,
@@ -429,7 +393,37 @@ class _SaleStockPageState extends State<SaleStockPage> {
                 ],
               ),
             ),
-
+            // Customer and Product Selection Buttons
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => _openCustomerSelection(context),
+                    icon: Icon(Icons.people, color: Colors.white),
+                    label: Text('কাস্টমার ', style: TextStyle(fontSize: screenWidth * 0.04)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                ),
+                SizedBox(width: 1.8),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => _openProductSelection(context),
+                    icon: Icon(Icons.add_shopping_cart, color: Colors.white),
+                    label: Text('পণ্য নির্বাচন', style: TextStyle(fontSize: screenWidth * 0.04)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
             // Fixed Customer information and sale button section
             Container(
               padding: EdgeInsets.only(top: 10),

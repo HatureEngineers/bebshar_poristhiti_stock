@@ -35,7 +35,6 @@ class _ProductSelectionPageState extends State<ProductSelectionPage> {
     try {
       String userId = FirebaseAuth.instance.currentUser?.uid ?? '';
 
-      // ফায়ারস্টোরের কুয়েরি রিয়েল-টাইম স্ট্রিমের জন্য
       Query query = FirebaseFirestore.instance
           .collection('users')
           .doc(userId)
@@ -47,7 +46,6 @@ class _ProductSelectionPageState extends State<ProductSelectionPage> {
         query = query.startAfterDocument(lastFetchedDocument!);
       }
 
-      // snapshots ব্যবহার করলে রিয়েল-টাইম আপডেট পেতে পারেন
       query.snapshots().listen((snapshot) {
         setState(() {
           if (snapshot.docs.isNotEmpty) {
@@ -69,8 +67,8 @@ class _ProductSelectionPageState extends State<ProductSelectionPage> {
   void _selectProduct(Map<String, dynamic> product) {
     Navigator.pop(context, {
       'name': product['name'],
-      'quantity': product['totalAmount'],
-      'sale_price': product['sale_price'], // এখন বিক্রয় মূল্য পাঠানো হচ্ছে
+      'totalAmount': product['totalAmount'],
+      'sale_price': product['sale_price'],
     });
   }
 
@@ -90,6 +88,9 @@ class _ProductSelectionPageState extends State<ProductSelectionPage> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20), // কোনাগুলো গোলাকার করার জন্য
+          ),
           title: Text(
             'নতুন পণ্য যুক্ত করুন',
             textAlign: TextAlign.center,
@@ -125,11 +126,11 @@ class _ProductSelectionPageState extends State<ProductSelectionPage> {
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green, // বাটনের ব্যাকগ্রাউন্ড রঙ পরিবর্তন
-                foregroundColor: Colors.white, // টেক্সটের রঙ পরিবর্তন
-                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10), // প্যাডিং
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10), // বাটনের কোণ গোলাকার করা
+                  borderRadius: BorderRadius.circular(10),
                 ),
               ),
               onPressed: () async {
@@ -144,8 +145,8 @@ class _ProductSelectionPageState extends State<ProductSelectionPage> {
               child: Text(
                 'যুক্ত করুন',
                 style: TextStyle(
-                  fontSize: 18, // টেক্সট সাইজ পরিবর্তন
-                  fontWeight: FontWeight.bold, // ফন্টের ওজন পরিবর্তন (ঐচ্ছিক)
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ),
@@ -160,7 +161,6 @@ class _ProductSelectionPageState extends State<ProductSelectionPage> {
       String userId = FirebaseAuth.instance.currentUser?.uid ?? '';
       String productName = _nameController.text;
 
-      // Check if product with the same name already exists
       QuerySnapshot existingProduct = await FirebaseFirestore.instance
           .collection('users')
           .doc(userId)
@@ -176,7 +176,6 @@ class _ProductSelectionPageState extends State<ProductSelectionPage> {
         return;
       }
 
-      // Validate and parse user inputs for price and totalAmount as double
       double purchase_price = double.tryParse(_purchasePriceController.text) ?? 0.0;
       double sale_price = double.tryParse(_salePriceController.text) ?? 0.0;
       double totalAmount = double.tryParse(_totalAmountController.text) ?? 0.0;
@@ -188,7 +187,6 @@ class _ProductSelectionPageState extends State<ProductSelectionPage> {
         return;
       }
 
-      double totalPrice = purchase_price * totalAmount;
       await FirebaseFirestore.instance
           .collection('users')
           .doc(userId)
@@ -199,11 +197,10 @@ class _ProductSelectionPageState extends State<ProductSelectionPage> {
         'sale_price': sale_price,
         'quantity': totalAmount,
         'totalAmount': totalAmount,
-        'totalPrice': totalPrice,
         'isPacket': true,
-        'size': 0.0, // Setting size as double
+        'size': 0.0,
         'stockUnit': 'pcs',
-        'unitUnit': 'gm',
+        'unitUnit': 'kg',
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -233,78 +230,89 @@ class _ProductSelectionPageState extends State<ProductSelectionPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.blueAccent,
-        title: Text('পণ্য নির্বাচন'),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.add),
-            onPressed: _showAddProductDialog,
-          ),
-        ],
+        backgroundColor: Colors.green,
+        title: Center(child: Text('পণ্য নির্বাচন')),
+        automaticallyImplyLeading: false, // <- আইকন সরানোর জন্য
       ),
-      body: Column(
+      body: Stack(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: TextField(
-              onChanged: _filterProducts,
-              decoration: InputDecoration(
-                labelText: 'পণ্য অনুসন্ধান করুন',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.search),
-                filled: true,
-                fillColor: Colors.grey[200],
+          Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: TextField(
+                  onChanged: _filterProducts,
+                  decoration: InputDecoration(
+                    labelText: 'পণ্য অনুসন্ধান করুন',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.search),
+                    filled: true,
+                    fillColor: Colors.grey[200],
+                  ),
+                ),
               ),
+              Expanded(
+                child: NotificationListener<ScrollNotification>(
+                  onNotification: (scrollNotification) {
+                    if (scrollNotification.metrics.pixels ==
+                        scrollNotification.metrics.maxScrollExtent &&
+                        !isLoading) {
+                      _fetchProducts(isLoadMore: true);
+                    }
+                    return true;
+                  },
+                  child: filteredProducts.isEmpty
+                      ? Center(
+                      child: isLoading
+                          ? CircularProgressIndicator()
+                          : Text('কোনো পণ্য নেই'))
+                      : ListView.builder(
+                    itemCount: filteredProducts.length,
+                    itemBuilder: (context, index) {
+                      final product = filteredProducts[index];
+                      return Card(
+                        margin:
+                        EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                        elevation: 4,
+                        child: ListTile(
+                          title: Text(
+                            product['name'],
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Text(
+                            'মজুদ পরিমাণ: ${product['totalAmount']}',
+                            style: TextStyle(color: Colors.blueGrey),
+                          ),
+                          trailing: Text(
+                            'বিক্রয় মূল্যঃ ৳${product['sale_price']}',
+                            style: TextStyle(
+                                color: Colors.green[700],
+                                fontWeight: FontWeight.bold),
+                          ),
+                          onTap: () => _selectProduct(product),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              if (isLoading)
+                Padding(
+                  padding: EdgeInsets.all(8.0),
+                  child: CircularProgressIndicator(),
+                ),
+            ],
+          ),
+          Positioned(
+            bottom: 16,
+            right: 16,
+            child: FloatingActionButton(
+              onPressed: _showAddProductDialog,
+              backgroundColor: Colors.blue,
+              child: Icon(Icons.add),
             ),
           ),
-          Expanded(
-            child: NotificationListener<ScrollNotification>(
-              onNotification: (scrollNotification) {
-                if (scrollNotification.metrics.pixels ==
-                    scrollNotification.metrics.maxScrollExtent &&
-                    !isLoading) {
-                  _fetchProducts(isLoadMore: true);
-                }
-                return true;
-              },
-              child: filteredProducts.isEmpty
-                  ? Center(
-                  child: isLoading
-                      ? CircularProgressIndicator()
-                      : Text('কোনো পণ্য নেই'))
-                  : ListView.builder(
-                itemCount: filteredProducts.length,
-                itemBuilder: (context, index) {
-                  final product = filteredProducts[index];
-                  return Card(
-                    margin: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                    elevation: 4,
-                    child: ListTile(
-                      title: Text(
-                        product['name'],
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      subtitle: Text(
-                        'মজুদ পরিমাণ: ${product['totalAmount']}',
-                        style: TextStyle(color: Colors.blueGrey),
-                      ),
-                      trailing: Text(
-                        'বিক্রয় মূল্যঃ ৳${product['sale_price']}',
-                        style: TextStyle(color: Colors.green[700]),
-                      ),
-                      onTap: () => _selectProduct(product),
-                    ),
-                  );
-                },
-              )
-            ),
-          ),
-          if (isLoading)
-            Padding(
-              padding: EdgeInsets.all(8.0),
-              child: CircularProgressIndicator(),
-            ),
         ],
       ),
     );

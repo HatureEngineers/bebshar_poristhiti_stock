@@ -17,7 +17,9 @@ class _ProductSelectionPageState extends State<ProductSelectionPage> {
   final int loadMoreCount = 10;
 
   final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _priceController = TextEditingController();
+  final TextEditingController _purchasePriceController =
+      TextEditingController();
+  final TextEditingController _salePriceController = TextEditingController();
   final TextEditingController _totalAmountController = TextEditingController();
 
   @override
@@ -40,7 +42,9 @@ class _ProductSelectionPageState extends State<ProductSelectionPage> {
           .doc(userId)
           .collection('stock')
           .orderBy('name')
-          .limit(isLoadMore && lastFetchedDocument != null ? loadMoreCount : initialFetchCount);
+          .limit(isLoadMore && lastFetchedDocument != null
+              ? loadMoreCount
+              : initialFetchCount);
 
       if (isLoadMore && lastFetchedDocument != null) {
         query = query.startAfterDocument(lastFetchedDocument!);
@@ -50,11 +54,13 @@ class _ProductSelectionPageState extends State<ProductSelectionPage> {
       query.snapshots().listen((snapshot) {
         setState(() {
           if (snapshot.docs.isNotEmpty) {
-            products = snapshot.docs.map((doc) => {
-              'name': doc['name'] ?? 'Unknown',
-              'price': doc['price'] ?? 0,
-              'totalAmount': doc['totalAmount'] ?? 0,
-            }).toList();
+            products = snapshot.docs
+                .map((doc) => {
+                      'name': doc['name'] ?? 'Unknown',
+                      'purchase_price': doc['purchase_price'] ?? 0,
+                      'totalAmount': doc['totalAmount'] ?? 0,
+                    })
+                .toList();
             filteredProducts = products;
             lastFetchedDocument = snapshot.docs.last;
           }
@@ -66,7 +72,12 @@ class _ProductSelectionPageState extends State<ProductSelectionPage> {
   }
 
   void _selectProduct(Map<String, dynamic> product) {
-    Navigator.pop(context, product);
+    Navigator.pop(context, {
+      'name': product['name'],
+      'totalAmount': product['totalAmount'],
+      'purchase_price':
+          product['purchase_price'], // এখন বিক্রয় মূল্য পাঠানো হচ্ছে
+    });
   }
 
   void _filterProducts(String query) {
@@ -85,6 +96,10 @@ class _ProductSelectionPageState extends State<ProductSelectionPage> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius:
+                BorderRadius.circular(20), // কোনাগুলো গোলাকার করার জন্য
+          ),
           title: Text('নতুন পণ্য যুক্ত করুন'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -94,8 +109,13 @@ class _ProductSelectionPageState extends State<ProductSelectionPage> {
                 decoration: InputDecoration(labelText: 'পণ্যের নাম'),
               ),
               TextField(
-                controller: _priceController,
-                decoration: InputDecoration(labelText: 'মূল্য (৳)'),
+                controller: _purchasePriceController,
+                decoration: InputDecoration(labelText: 'ক্রয় মূল্য (৳)'),
+                keyboardType: TextInputType.number,
+              ),
+              TextField(
+                controller: _salePriceController,
+                decoration: InputDecoration(labelText: 'বিক্রয় মূল্য (৳)'),
                 keyboardType: TextInputType.number,
               ),
               TextField(
@@ -112,23 +132,26 @@ class _ProductSelectionPageState extends State<ProductSelectionPage> {
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green, // বাটনের ব্যাকগ্রাউন্ড রঙ পরিবর্তন
+                backgroundColor:
+                    Colors.green, // বাটনের ব্যাকগ্রাউন্ড রঙ পরিবর্তন
                 foregroundColor: Colors.white, // টেক্সটের রঙ পরিবর্তন
-                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10), // প্যাডিং
+                padding: EdgeInsets.symmetric(
+                    horizontal: 20, vertical: 10), // প্যাডিং
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10), // বাটনের কোণ গোলাকার করা
+                  borderRadius:
+                      BorderRadius.circular(10), // বাটনের কোণ গোলাকার করা
                 ),
               ),
               onPressed: () async {
                 if (_nameController.text.isNotEmpty &&
-                    _priceController.text.isNotEmpty &&
+                    _purchasePriceController.text.isNotEmpty &&
                     _totalAmountController.text.isNotEmpty) {
                   await _addProduct();
                   Navigator.pop(context);
                   _resetData();
                 }
               },
-              child: Text('যোগ করুন'),
+              child: Text('যুক্ত করুন'),
             ),
           ],
         );
@@ -158,31 +181,32 @@ class _ProductSelectionPageState extends State<ProductSelectionPage> {
       }
 
       // Validate and parse user inputs for price and totalAmount as double
-      double price = double.tryParse(_priceController.text) ?? 0.0;
+      double purchase_price =
+          double.tryParse(_purchasePriceController.text) ?? 0.0;
+      double sale_price = double.tryParse(_salePriceController.text) ?? 0.0;
       double totalAmount = double.tryParse(_totalAmountController.text) ?? 0.0;
 
-      if (price <= 0 || totalAmount <= 0) {
+      if (purchase_price <= 0 || totalAmount <= 0) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('মূল্য এবং পরিমাণ সঠিকভাবে পূরণ করুন')),
         );
         return;
       }
 
-      double totalPrice = price * totalAmount;
       await FirebaseFirestore.instance
           .collection('users')
           .doc(userId)
           .collection('stock')
           .add({
         'name': productName,
-        'price': price,
+        'purchase_price': purchase_price,
+        'sale_price': sale_price,
         'quantity': totalAmount,
         'totalAmount': totalAmount,
-        'totalPrice': totalPrice,
         'isPacket': true,
         'size': 0.0, // Setting size as double
         'stockUnit': 'pcs',
-        'unitUnit': 'gm',
+        'unitUnit': 'kg',
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -190,7 +214,8 @@ class _ProductSelectionPageState extends State<ProductSelectionPage> {
       );
 
       _nameController.clear();
-      _priceController.clear();
+      _purchasePriceController.clear();
+      _salePriceController.clear();
       _totalAmountController.clear();
       _resetData();
     } catch (e) {
@@ -212,82 +237,88 @@ class _ProductSelectionPageState extends State<ProductSelectionPage> {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.blueAccent,
-        title: Text('পণ্য নির্বাচন'),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.add),
-            onPressed: _showAddProductDialog,
-          ),
-        ],
+        title: Center(child: Text('পণ্য নির্বাচন')),
+        automaticallyImplyLeading: false,
       ),
-      body: Column(
+      body: Stack(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: TextField(
-              onChanged: _filterProducts,
-              decoration: InputDecoration(
-                labelText: 'পণ্য অনুসন্ধান করুন',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.search),
-                filled: true,
-                fillColor: Colors.grey[200],
+          Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: TextField(
+                  onChanged: _filterProducts,
+                  decoration: InputDecoration(
+                    labelText: 'পণ্য অনুসন্ধান করুন',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.search),
+                    filled: true,
+                    fillColor: Colors.grey[200],
+                  ),
+                ),
               ),
+              Expanded(
+                child: NotificationListener<ScrollNotification>(
+                  onNotification: (scrollNotification) {
+                    if (scrollNotification.metrics.pixels ==
+                            scrollNotification.metrics.maxScrollExtent &&
+                        !isLoading) {
+                      _fetchProducts(isLoadMore: true);
+                    }
+                    return true;
+                  },
+                  child: filteredProducts.isEmpty
+                      ? Center(
+                          child: isLoading
+                              ? CircularProgressIndicator()
+                              : Text('কোনো পণ্য নেই'))
+                      : ListView.builder(
+                          itemCount: filteredProducts.length,
+                          itemBuilder: (context, index) {
+                            final product = filteredProducts[index];
+                            return Card(
+                              margin: EdgeInsets.symmetric(
+                                  vertical: 8, horizontal: 16),
+                              elevation: 4,
+                              child: ListTile(
+                                title: Text(
+                                  product['name'],
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                subtitle: Text(
+                                  'মজুদ পরিমাণ: ${product['totalAmount']}',
+                                  style: TextStyle(color: Colors.blueGrey),
+                                ),
+                                trailing: Text(
+                                  'ক্রয় মূল্যঃ ৳${product['purchase_price']}',
+                                  style: TextStyle(
+                                      color: Colors.green[700],
+                                      fontWeight: FontWeight.bold),
+                                ),
+                                onTap: () => _selectProduct(product),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ),
+              if (isLoading)
+                Padding(
+                  padding: EdgeInsets.all(8.0),
+                  child: CircularProgressIndicator(),
+                ),
+            ],
+          ),
+          Positioned(
+            bottom: 16,
+            right: 16,
+            child: FloatingActionButton(
+              onPressed: _showAddProductDialog,
+              backgroundColor: Colors.blue,
+              child: Icon(Icons.add),
             ),
           ),
-          Expanded(
-            child: NotificationListener<ScrollNotification>(
-              onNotification: (scrollNotification) {
-                if (scrollNotification.metrics.pixels ==
-                    scrollNotification.metrics.maxScrollExtent &&
-                    !isLoading) {
-                  _fetchProducts(isLoadMore: true);
-                }
-                return true;
-              },
-              child: filteredProducts.isEmpty
-                  ? Center(
-                  child: isLoading
-                      ? CircularProgressIndicator()
-                      : Text('কোনো পণ্য নেই'))
-                  : ListView.builder(
-                itemCount: filteredProducts.length,
-                itemBuilder: (context, index) {
-                  final product = filteredProducts[index];
-                  return Card(
-                    margin:
-                    EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                    elevation: 4,
-                    child: ListTile(
-                      title: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              '${product['name']} (${product['totalAmount']})',
-                              style:
-                              TextStyle(fontWeight: FontWeight.bold),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          Text(
-                            '৳ ${product['price']}',
-                            style: TextStyle(color: Colors.green[700]),
-                          ),
-                        ],
-                      ),
-                      onTap: () => _selectProduct(product),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-          if (isLoading)
-            Padding(
-              padding: EdgeInsets.all(8.0),
-              child: CircularProgressIndicator(),
-            ),
         ],
       ),
     );

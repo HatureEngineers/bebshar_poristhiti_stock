@@ -22,9 +22,11 @@ class _SupplierSelectionPageState extends State<SupplierSelectionPage> {
     _scrollController.addListener(_onScroll);
     String? userId = getCurrentUserId();
     if (userId != null) {
-      _loadSuppliers(userId, isInitialLoad: true); // Initial load with 15 documents
+      _loadSuppliers(userId,
+          isInitialLoad: true); // Initial load with 15 documents
     }
   }
+
   String? getCurrentUserId() {
     User? user = FirebaseAuth.instance.currentUser;
     return user?.uid; // Return the user ID or null if the user is not logged in
@@ -32,7 +34,7 @@ class _SupplierSelectionPageState extends State<SupplierSelectionPage> {
 
   void _onScroll() {
     if (_scrollController.position.pixels ==
-        _scrollController.position.maxScrollExtent &&
+            _scrollController.position.maxScrollExtent &&
         _hasMoreData) {
       String? userId = getCurrentUserId();
       if (userId != null) {
@@ -66,28 +68,37 @@ class _SupplierSelectionPageState extends State<SupplierSelectionPage> {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.green,
-        title: Text("সাপ্লায়ার/পার্টি নির্বাচন"),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.add),
-            onPressed: () async {
-              await _showAddSupplierDialog(context);
-              setState(() {}); // নতুন সাপ্লায়ার যুক্ত হলে লিস্ট রিফ্রেশ
-            },
+        title: Center(child: Text("সাপ্লায়ার/পার্টি নির্বাচন")),
+        automaticallyImplyLeading: false,
+      ),
+      body: Stack(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Column(
+              children: [
+                SizedBox(height: 10),
+                _buildSearchBar(),
+                Expanded(
+                  child: _buildSupplierList(
+                      userId), // Pass the userId to the Supplier list
+                ),
+              ],
+            ),
+          ),
+          Positioned(
+            bottom: 16,
+            right: 16,
+            child: FloatingActionButton(
+              onPressed: () async {
+                await _showAddSupplierDialog(context);
+                setState(() {}); // নতুন কাস্টমার যুক্ত হলে লিস্ট রিফ্রেশ
+              },
+              backgroundColor: Colors.green,
+              child: Icon(Icons.add),
+            ),
           ),
         ],
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(8.0),
-        child: Column(
-          children: [
-            SizedBox(height: 10),
-            _buildSearchBar(),
-            Expanded(
-              child: _buildSupplierList(userId), // Pass the userId to the Supplier list
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -143,13 +154,15 @@ class _SupplierSelectionPageState extends State<SupplierSelectionPage> {
     );
   }
 
-  Widget _buildSupplierTile(BuildContext context, DocumentSnapshot supplier, String userId) {
-    Map<String, dynamic>? supplierData = supplier.data() as Map<String, dynamic>?;
+  Widget _buildSupplierTile(
+      BuildContext context, DocumentSnapshot supplier, String userId) {
+    Map<String, dynamic>? supplierData =
+        supplier.data() as Map<String, dynamic>?;
 
     String imageUrl =
-    (supplierData != null && supplierData.containsKey('image'))
-        ? supplierData['image']
-        : 'assets/error.jpg';
+        (supplierData != null && supplierData.containsKey('image'))
+            ? supplierData['image']
+            : 'assets/error.jpg';
     String name = supplierData?['name'] ?? 'Unknown';
     String phone = supplierData?['phone'] ?? 'Unknown';
     double transaction = supplierData?['transaction']?.toDouble() ?? 0.0;
@@ -185,7 +198,8 @@ class _SupplierSelectionPageState extends State<SupplierSelectionPage> {
   Future<void> _showAddSupplierDialog(BuildContext context) async {
     final TextEditingController _nameController = TextEditingController();
     final TextEditingController _phoneController = TextEditingController();
-    final TextEditingController _transactionController = TextEditingController();
+    final TextEditingController _transactionController =
+        TextEditingController();
 
     String? getCurrentUserId() {
       User? user = FirebaseAuth.instance.currentUser;
@@ -227,11 +241,14 @@ class _SupplierSelectionPageState extends State<SupplierSelectionPage> {
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green, // বাটনের ব্যাকগ্রাউন্ড রঙ পরিবর্তন
+                backgroundColor:
+                    Colors.green, // বাটনের ব্যাকগ্রাউন্ড রঙ পরিবর্তন
                 foregroundColor: Colors.white, // টেক্সটের রঙ পরিবর্তন
-                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10), // প্যাডিং
+                padding: EdgeInsets.symmetric(
+                    horizontal: 20, vertical: 10), // প্যাডিং
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10), // বাটনের কোণ গোলাকার করা
+                  borderRadius:
+                      BorderRadius.circular(10), // বাটনের কোণ গোলাকার করা
                 ),
               ),
               onPressed: () async {
@@ -240,7 +257,8 @@ class _SupplierSelectionPageState extends State<SupplierSelectionPage> {
 
                 String name = _nameController.text.trim();
                 String phone = _phoneController.text.trim();
-                double transaction = double.tryParse(_transactionController.text.trim()) ?? 0.0;
+                double transaction =
+                    double.tryParse(_transactionController.text.trim()) ?? 0.0;
 
                 // ফিল্ড ভ্যালিডেশন: নাম এবং ফোন নম্বর খালি না হওয়া
                 if (name.isEmpty || phone.isEmpty) {
@@ -253,7 +271,8 @@ class _SupplierSelectionPageState extends State<SupplierSelectionPage> {
                 // ফোন নম্বর ১১ সংখ্যার কিনা চেক করা
                 if (phone.length != 11) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('ফোন নম্বর অবশ্যই ১১ সংখ্যার হতে হবে')),
+                    SnackBar(
+                        content: Text('ফোন নম্বর অবশ্যই ১১ সংখ্যার হতে হবে')),
                   );
                   return;
                 }
@@ -268,7 +287,9 @@ class _SupplierSelectionPageState extends State<SupplierSelectionPage> {
 
                 if (existingSupplier.docs.isNotEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('এই ফোন নম্বরটি ইতিমধ্যেই যুক্ত করা হয়েছে')),
+                    SnackBar(
+                        content:
+                            Text('এই ফোন নম্বরটি ইতিমধ্যেই যুক্ত করা হয়েছে')),
                   );
                   return;
                 }
@@ -301,7 +322,8 @@ class _SupplierSelectionPageState extends State<SupplierSelectionPage> {
     );
   }
 
-  Future<void> _loadSuppliers(String userId, {bool isInitialLoad = false}) async {
+  Future<void> _loadSuppliers(String userId,
+      {bool isInitialLoad = false}) async {
     if (_isLoading || !_hasMoreData) return;
 
     setState(() {

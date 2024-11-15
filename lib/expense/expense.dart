@@ -16,7 +16,9 @@ class _ExpensePageState extends State<ExpensePage> {
 
   Future<Map<String, dynamic>?> getPreviousExpense(String expenseId) async {
     final expenseDoc = await getExpenseCollection().doc(expenseId).get();
-    return expenseDoc.exists ? expenseDoc.data() as Map<String, dynamic>? : null;
+    return expenseDoc.exists
+        ? expenseDoc.data() as Map<String, dynamic>?
+        : null;
   }
 
   double _totalExpense = 0.0;
@@ -84,7 +86,8 @@ class _ExpensePageState extends State<ExpensePage> {
 
     await dailyDocRef.set({
       'expense': FieldValue.increment(expenseAmount),
-      if (_includeInCashbox) 'cashbox_total': FieldValue.increment(expenseAmount),
+      if (_includeInCashbox)
+        'cashbox_total': FieldValue.increment(expenseAmount),
     }, SetOptions(merge: true));
 
     // Update monthly_totals collection
@@ -96,7 +99,8 @@ class _ExpensePageState extends State<ExpensePage> {
 
     await monthlyDocRef.set({
       'expense': FieldValue.increment(expenseAmount),
-      if (_includeInCashbox) 'cashbox_total': FieldValue.increment(expenseAmount),
+      if (_includeInCashbox)
+        'cashbox_total': FieldValue.increment(expenseAmount),
     }, SetOptions(merge: true));
 
     // Update yearly_totals collection
@@ -108,7 +112,8 @@ class _ExpensePageState extends State<ExpensePage> {
 
     await yearlyDocRef.set({
       'expense': FieldValue.increment(expenseAmount),
-      if (_includeInCashbox) 'cashbox_total': FieldValue.increment(expenseAmount),
+      if (_includeInCashbox)
+        'cashbox_total': FieldValue.increment(expenseAmount),
     }, SetOptions(merge: true));
 
     // Update total expense calculation and clear fields
@@ -128,8 +133,8 @@ class _ExpensePageState extends State<ExpensePage> {
     return cashboxDoc.exists;
   }
 
-  Future<void> _editExpense(String expenseId, double newAmount, String newDetails,
-      bool newIncludeInCashbox) async {
+  Future<void> _editExpense(String expenseId, double newAmount,
+      String newDetails, bool newIncludeInCashbox) async {
     final previousData = await getPreviousExpense(expenseId);
 
     if (previousData == null) {
@@ -139,16 +144,15 @@ class _ExpensePageState extends State<ExpensePage> {
 
     // পুরনো ভেলু এবং চেকবক্স স্টেট পাওয়া যাচ্ছে
     double previousAmount = previousData['amount'] ?? 0.0;
-    bool previousIncludeInCashbox = previousData['includeInCashbox'] ?? false;
+    bool previousIncludeInCashbox = previousData['includeInCashbox'] ?? true;
 
     // `expense` এবং `cashbox_total` ফিল্ডে আপডেট লজিক
     final expenseDifference = newAmount - previousAmount;
 
     // Updated data for expense collection
     final updatedData = {
-      'amount': '(পরিবর্তিত) $newAmount',
-      'reason': '(পরিবর্তিত) $newDetails',
-      'time': Timestamp.now(),
+      'amount': newAmount,
+      'reason': newDetails,
       'includeInCashbox': newIncludeInCashbox,
     };
 
@@ -158,13 +162,14 @@ class _ExpensePageState extends State<ExpensePage> {
     // Updating daily, monthly, and yearly totals based on cashbox state
     if (newIncludeInCashbox && !previousIncludeInCashbox) {
       // If checkbox is newly checked, add the new amount to cashbox_total
-      await updateTotals(newAmount, newAmount);
+      await updateTotals(expenseDifference ,newAmount);
     } else if (!newIncludeInCashbox && previousIncludeInCashbox) {
       // If checkbox is unchecked, subtract the previous amount from cashbox_total
       await updateTotals(expenseDifference, -previousAmount);
     } else {
       // If checkbox state hasn't changed, update only the expense field
-      await updateTotals(expenseDifference, previousIncludeInCashbox ? expenseDifference : 0);
+      await updateTotals(
+          expenseDifference, previousIncludeInCashbox ? expenseDifference : 0);
     }
 
     // Update or remove from cashbox based on checkbox state
@@ -247,7 +252,8 @@ class _ExpensePageState extends State<ExpensePage> {
         .doc('${now.year}-${now.month}-${now.day}');
     await dailyDocRef.set({
       'expense': FieldValue.increment(-oldAmount),
-      if (oldIncludeInCashbox) 'cashbox_total': FieldValue.increment(-oldAmount),
+      if (oldIncludeInCashbox)
+        'cashbox_total': FieldValue.increment(-oldAmount),
     }, SetOptions(merge: true));
 
     // Update monthly_totals collection
@@ -258,7 +264,8 @@ class _ExpensePageState extends State<ExpensePage> {
         .doc('${now.year}-${now.month}');
     await monthlyDocRef.set({
       'expense': FieldValue.increment(-oldAmount),
-      if (oldIncludeInCashbox) 'cashbox_total': FieldValue.increment(-oldAmount),
+      if (oldIncludeInCashbox)
+        'cashbox_total': FieldValue.increment(-oldAmount),
     }, SetOptions(merge: true));
 
     // Update yearly_totals collection
@@ -269,7 +276,8 @@ class _ExpensePageState extends State<ExpensePage> {
         .doc('${now.year}');
     await yearlyDocRef.set({
       'expense': FieldValue.increment(-oldAmount),
-      if (oldIncludeInCashbox) 'cashbox_total': FieldValue.increment(-oldAmount),
+      if (oldIncludeInCashbox)
+        'cashbox_total': FieldValue.increment(-oldAmount),
     }, SetOptions(merge: true));
 
     await _calculateTotalExpense();
@@ -438,6 +446,7 @@ class _ExpensePageState extends State<ExpensePage> {
       _totalExpense = total; // Update the total expense state
     });
   }
+
   //ডিলিট এডিটের জন্য
   Future<bool> _getIsEditValue() async {
     final doc = await FirebaseFirestore.instance
@@ -510,7 +519,7 @@ class _ExpensePageState extends State<ExpensePage> {
   Widget _buildExpenseList() {
     return StreamBuilder<QuerySnapshot>(
       stream:
-          getExpenseCollection().orderBy('time', descending: true).snapshots(),
+      getExpenseCollection().orderBy('time', descending: true).snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData)
           return Center(child: CircularProgressIndicator());
@@ -536,7 +545,7 @@ class _ExpensePageState extends State<ExpensePage> {
 
             return FutureBuilder<bool>(
               future:
-                  checkIfExpenseInCashbox(expenseId), // Check inclusion status
+              checkIfExpenseInCashbox(expenseId), // Check inclusion status
               builder: (context, cashboxSnapshot) {
                 Color cardColor = Colors.blue[100]!; // Default color
                 bool isIncludedInCashbox = false;
@@ -572,7 +581,7 @@ class _ExpensePageState extends State<ExpensePage> {
                       isIncludedInCashbox
                           ? Icons.account_balance_wallet
                           : Icons
-                              .money, // Different icons based on cashbox inclusion
+                          .money, // Different icons based on cashbox inclusion
                       size: 20,
                       color: isIncludedInCashbox
                           ? Colors.green
@@ -591,7 +600,7 @@ class _ExpensePageState extends State<ExpensePage> {
                         ),
                         SizedBox(
                             height:
-                                4), // Small space between title and subtitle
+                            4), // Small space between title and subtitle
                         Text(
                           'বিবরণ: $details', // Details label
                           style: TextStyle(
@@ -650,7 +659,7 @@ class _ExpensePageState extends State<ExpensePage> {
               vertical: 10, horizontal: 20), // Add padding for content
           child: Column(
             crossAxisAlignment:
-                CrossAxisAlignment.center, // Align text to the start
+            CrossAxisAlignment.center, // Align text to the start
             children: [
               Text(
                 '$label $rangeLabel', // Title with range label
@@ -682,7 +691,7 @@ class _ExpensePageState extends State<ExpensePage> {
             decoration: InputDecoration(
               labelText: 'খরচের বর্ণনা লিখুন',
               border:
-                  OutlineInputBorder(borderRadius: BorderRadius.circular(20)),
+              OutlineInputBorder(borderRadius: BorderRadius.circular(20)),
               contentPadding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
             ),
           ),
@@ -696,7 +705,7 @@ class _ExpensePageState extends State<ExpensePage> {
             decoration: InputDecoration(
               labelText: 'খরচের পরিমান (টাকা)',
               border:
-                  OutlineInputBorder(borderRadius: BorderRadius.circular(20)),
+              OutlineInputBorder(borderRadius: BorderRadius.circular(20)),
               contentPadding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
             ),
           ),
@@ -720,15 +729,15 @@ class _ExpensePageState extends State<ExpensePage> {
           onPressed: _isAddingExpense
               ? null
               : () async {
-                  FocusScope.of(context).unfocus();
-                  setState(() {
-                    _isAddingExpense = true;
-                  });
-                  await _addExpense();
-                  setState(() {
-                    _isAddingExpense = false;
-                  });
-                },
+            FocusScope.of(context).unfocus();
+            setState(() {
+              _isAddingExpense = true;
+            });
+            await _addExpense();
+            setState(() {
+              _isAddingExpense = false;
+            });
+          },
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.green,
             fixedSize: Size(180, 45),

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'supplier_selection_page.dart';
-import 'product_selection_page.dart';
+import 'purchase_product_selection.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -22,7 +22,7 @@ class _PurchaseStockPageState extends State<PurchaseStockPage> {
   List<TextEditingController> priceControllers = [];
   List<Map<String, dynamic>> selectedProducts = [];
   double get totalProductPrice =>
-      selectedProducts.fold(0, (sum, product) => sum + (product['price'] * product['totalAmount']));
+      selectedProducts.fold(0, (sum, product) => sum + (product['purchase_price'] * product['totalAmount']));
 
   double get grandTotal => selectedPreviousTransaction + totalProductPrice;
   final TextEditingController cashPaymentController = TextEditingController();
@@ -193,6 +193,7 @@ class _PurchaseStockPageState extends State<PurchaseStockPage> {
         selectedSupplierPhone = '';
         selectedPreviousTransaction = 0.0;
         selectedSupplierId = null;
+        isProcessing = false;
         FocusScope.of(context).unfocus();
       });
 
@@ -217,7 +218,7 @@ class _PurchaseStockPageState extends State<PurchaseStockPage> {
         ),
         child: SizedBox(
           width: MediaQuery.of(context).size.width * 0.8,
-          height: MediaQuery.of(context).size.height * 0.6,
+          height: MediaQuery.of(context).size.height * 0.7,
           child: SupplierSelectionPage(),
         ),
       ),
@@ -236,7 +237,7 @@ class _PurchaseStockPageState extends State<PurchaseStockPage> {
   void _openProductSelection(BuildContext context) async {
     final selectedProduct = await showDialog<Map<String, dynamic>>(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       builder: (context) => Dialog(
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20), // রাউন্ড এজ
@@ -254,12 +255,12 @@ class _PurchaseStockPageState extends State<PurchaseStockPage> {
 
       if (!isProductAlreadySelected) {
         setState(() {
-          int previoustotalAmount = selectedProduct['totalAmount']?.toInt() ?? 0 ?? 0;
+          double totalStockAmount = selectedProduct['totalAmount'];
           selectedProducts.insert(0, {
             'name': selectedProduct['name'],
-            'price': selectedProduct['price'],
+            'purchase_price': selectedProduct['purchase_price'],
+            'stockAmount': totalStockAmount,
             'totalAmount': 1,
-            'previoustotalAmount': previoustotalAmount,
           });
           priceControllers.insert(0, TextEditingController(text: selectedProduct['price'].toString()));
         });
@@ -278,7 +279,7 @@ class _PurchaseStockPageState extends State<PurchaseStockPage> {
   void updateProductPrice(int index, String value) {
     setState(() {
       double newPrice = double.tryParse(value) ?? selectedProducts[index]['price'];
-      selectedProducts[index]['price'] = newPrice;
+      selectedProducts[index]['purchase_price'] = newPrice;
       purchaseAmount = totalProductPrice;
     });
   }
@@ -301,55 +302,23 @@ class _PurchaseStockPageState extends State<PurchaseStockPage> {
       },
       child: Scaffold(
       appBar: AppBar(
-        title: Text('পণ্য ক্রয়'),
+        title: Text('পণ্য ক্রয় ও পার্টি লেনদেন'),
         backgroundColor: Colors.teal,
       ),
       body: Padding(
         padding: EdgeInsets.all(screenWidth * 0.04),
         child: Column(
           children: [
-            // Supplier and Product Selection Buttons
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => _openSupplierSelection(context),
-                    icon: Icon(Icons.people, color: Colors.white),
-                    label: Text('পার্টি নির্বাচন', style: TextStyle(fontSize: screenWidth * 0.04)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.teal,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
-                  ),
-                ),
-                SizedBox(width: 10),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => _openProductSelection(context),
-                    icon: Icon(Icons.add_shopping_cart, color: Colors.white),
-                    label: Text('পণ্য নির্বাচন', style: TextStyle(fontSize: screenWidth * 0.04)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.teal,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 10),
             // Scrollable selected products list
             Expanded(
               child: Column(
                 children: [
                   Center(
                     child: Text(
-                      'নির্বাচিত পণ্যসমূহ:',
+                      'নির্বাচিত পণ্যসমূহ',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize: screenWidth * 0.045,
+                        fontSize: screenWidth * 0.05,
                         color: Colors.teal,
                       ),
                     ),
@@ -375,7 +344,7 @@ class _PurchaseStockPageState extends State<PurchaseStockPage> {
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          '${product['name']} (পূর্বের পরিমাণ: ${product['previoustotalAmount']})',
+                                          '${product['name']} (পূর্বের পরিমাণ: ${product['stockAmount']})',
                                           style: TextStyle(
                                             fontWeight: FontWeight.bold,
                                             fontSize: screenWidth * 0.04,
@@ -412,7 +381,7 @@ class _PurchaseStockPageState extends State<PurchaseStockPage> {
                                         onChanged: (value) => updateProducttotalAmount(index, value),
                                       ),
                                     ),
-                                    Text(' = ৳${product['price'] * product['totalAmount']}'),
+                                    Text(' = ৳${product['purchase_price'] * product['totalAmount']}'),
                                   ],
                                 ),
                               ],
@@ -426,6 +395,37 @@ class _PurchaseStockPageState extends State<PurchaseStockPage> {
               ),
             ),
 
+            // Supplier and Product Selection Buttons
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => _openSupplierSelection(context),
+                    icon: Icon(Icons.people, color: Colors.white),
+                    label: Text('পার্টি নির্বাচন', style: TextStyle(fontSize: screenWidth * 0.04)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.teal,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                ),
+                SizedBox(width: 1.5),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => _openProductSelection(context),
+                    icon: Icon(Icons.add_shopping_cart, color: Colors.white),
+                    label: Text('পণ্য নির্বাচন', style: TextStyle(fontSize: screenWidth * 0.04)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.teal,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
             // Fixed supplier information and purchase button section
             Container(
               padding: EdgeInsets.only(top: 10),
@@ -445,7 +445,7 @@ class _PurchaseStockPageState extends State<PurchaseStockPage> {
                   Divider(),
                   Center(
                     child: Text(
-                      'সাপ্লায়ার ইনফর্মেশন:',
+                      'পার্টি/সাপ্লায়ার ইনফর্মেশন:',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: screenWidth * 0.045,
